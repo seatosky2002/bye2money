@@ -29,11 +29,12 @@ const categoryColors: { [key: string]: { bg: string; text: string } } = {
 
 interface ExpenseListProps {
   onEditExpense: (expense: Expense) => void
-  refreshTrigger: number
   selectedExpenseId: string | null
+  currentYear: number
+  currentMonth: number
 }
 
-function ExpenseList({ onEditExpense, refreshTrigger, selectedExpenseId }: ExpenseListProps) {
+function ExpenseList({ onEditExpense, selectedExpenseId, currentYear, currentMonth }: ExpenseListProps) {
   const [expenses, setExpenses] = useState<Expense[]>([]) // generic type, 초기값
   const [filterDate, setFilterDate] = useState('2023. 08. 17') //필터용 날짜
   const [filterPaymentMethod, setFilterPaymentMethod] = useState('') //결제수단 필터
@@ -58,7 +59,7 @@ function ExpenseList({ onEditExpense, refreshTrigger, selectedExpenseId }: Expen
 
   useEffect(() => {
     fetchExpenses()
-  }, [refreshTrigger])  // refreshTrigger가 변경될 때마다 다시 fetch
+  }, [currentYear, currentMonth])  // 월이 변경될 때마다 다시 fetch
  
   const fetchExpenses = async () => {
     try {
@@ -73,7 +74,7 @@ function ExpenseList({ onEditExpense, refreshTrigger, selectedExpenseId }: Expen
     }
   }
 
-  // 필터링된 expenses
+  // 필터링된 expenses (타입 + 월 필터)
   const filteredExpenses = expenses.filter(expense => {
     const isIncome = expense.type === 'income'
     const isExpense = expense.type === 'expense'
@@ -81,12 +82,30 @@ function ExpenseList({ onEditExpense, refreshTrigger, selectedExpenseId }: Expen
     if (isIncome && !showIncome) return false
     if (isExpense && !showExpense) return false
 
+    // 월 필터링
+    const parts = expense.date.split('.').map(p => p.trim())
+    if (parts.length >= 2) {
+      const expenseYear = parseInt(parts[0])
+      const expenseMonth = parseInt(parts[1])
+      if (expenseYear !== currentYear || expenseMonth !== currentMonth) {
+        return false
+      }
+    }
+
     return true
   })
 
-  // Group expenses by date
+  // Group expenses by date (정규화된 날짜로 그룹화)
   const groupedExpenses: GroupedExpenses = filteredExpenses.reduce((acc, expense) => {
-    const dateKey = expense.date
+    // 날짜 정규화: 공백과 . 제거 후 다시 일관된 형식으로
+    const normalized = expense.date.replace(/\s/g, '').replace(/\./g, '')
+    const parts = expense.date.split('.').map(p => p.trim())
+
+    // 정규화된 키 생성 (YYYY.MM.DD 형식)
+    const dateKey = parts.length >= 3
+      ? `${parts[0]}. ${parts[1].padStart(2, '0')}. ${parts[2].padStart(2, '0')}`
+      : expense.date
+
     if (!acc[dateKey]) {
       acc[dateKey] = []
     }
@@ -106,9 +125,10 @@ function ExpenseList({ onEditExpense, refreshTrigger, selectedExpenseId }: Expen
     // Convert "2023. 08. 17" to "8월 17일 목요일" format
     const parts = dateString.split('. ')
     if (parts.length >= 3) {
+      const year = parseInt(parts[0])
       const month = parseInt(parts[1])
       const day = parseInt(parts[2])
-      const date = new Date(2023, month - 1, day)
+      const date = new Date(year, month - 1, day)
       const weekdays = ['일요일', '월요일', '화요일', '수요일', '목요일', '금요일', '토요일']
       return `${month}월 ${day}일 ${weekdays[date.getDay()]}`
     }
@@ -194,7 +214,16 @@ function ExpenseList({ onEditExpense, refreshTrigger, selectedExpenseId }: Expen
 
       {/* Transaction List */}
       <div className="bg-white">
-        {Object.entries(groupedExpenses).map(([date, dateExpenses]) => (
+        {Object.entries(groupedExpenses)
+          .sort(([dateA], [dateB]) => {
+            // 날짜를 Date 객체로 변환하여 내림차순 정렬 (최신순)
+            const parseDate = (dateStr: string) => {
+              const parts = dateStr.split('. ')
+              return new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]))
+            }
+            return parseDate(dateB).getTime() - parseDate(dateA).getTime()
+          })
+          .map(([date, dateExpenses]) => (
           <div key={date} className="border-b border-gray-200 last:border-b-0">
             {/* Date Header */}
             <div className="flex items-center justify-between px-4 py-3 bg-gray-50">
