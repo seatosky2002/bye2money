@@ -50,10 +50,10 @@ function ExpenseForm() {
     }
   }
 
-  const handleDescriptionChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleDescriptionChange = (e: React.ChangeEvent<HTMLInputElement>) => { //사용자가 입력한 객체
     const value = e.target.value
     if (value.length <= 32) {
-      setFormData({ ...formData, description: value })
+      setFormData({ ...formData, description: value }) //descritiona만 바꾸는 것. 나머지는 유지
     }
   }
 
@@ -133,10 +133,12 @@ function ExpenseForm() {
           className="text-base font-medium text-gray-900 outline-none bg-transparent border-0 p-0 cursor-pointer appearance-none bg-[url('data:image/svg+xml;charset=UTF-8,%3Csvg%20width%3D%2710%27%20height%3D%276%27%20viewBox%3D%270%200%2010%206%27%20fill%3D%27none%27%20xmlns%3D%27http%3A//www.w3.org/2000/svg%27%3E%3Cpath%20d%3D%27M1%201L5%205L9%201%27%20stroke%3D%27%23999%27%20stroke-width%3D%271.5%27%20stroke-linecap%3D%27round%27%20stroke-linejoin%3D%27round%27/%3E%3C/svg%3E')] bg-no-repeat bg-[right_center] pr-6"
         >
           <option value="">선택하세요</option>
-          <option value="food">식비</option>
-          <option value="transport">교통</option>
-          <option value="shopping">쇼핑</option>
-          <option value="etc">기타</option>
+          <option value="식비">식비</option>
+          <option value="교통">교통</option>
+          <option value="쇼핑/뷰티">쇼핑/뷰티</option>
+          <option value="문화/여가">문화/여가</option>
+          <option value="생활">생활</option>
+          <option value="기타">기타</option>
         </select>
       </div>
 
@@ -152,5 +154,5 @@ function ExpenseForm() {
     </div>
   )
 }
-
+//신경쓴 부분은 handle함수 만든 이유. 제약을 걸기 위한 것.
 export default ExpenseForm

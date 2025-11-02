@@ -28,23 +28,23 @@ const categoryColors: { [key: string]: { bg: string; text: string } } = {
 }
 
 function ExpenseList() {
-  const [expenses, setExpenses] = useState<Expense[]>([])
-  const [filterDate, setFilterDate] = useState('2023. 08. 17')
-  const [filterPaymentMethod, setFilterPaymentMethod] = useState('')
-  const [filterCategory, setFilterCategory] = useState('')
+  const [expenses, setExpenses] = useState<Expense[]>([]) // generic type, 초기값
+  const [filterDate, setFilterDate] = useState('2023. 08. 17') //필터용 날짜
+  const [filterPaymentMethod, setFilterPaymentMethod] = useState('') //결제수단 필터
+  const [filterCategory, setFilterCategory] = useState('') //카테고리 필터
 
   // Modal states
-  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false)
-  const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false)
+  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false) //결제수단 모달 열림 여부
+  const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false) //분류 모달 열림 여뷰
 
   // Custom options
-  const [paymentMethods, setPaymentMethods] = useState(['현대카드', '국민카드', '현금'])
-  const [categories, setCategories] = useState(['문화/여가', '교통', '식비', '생활', '쇼핑/뷰티', '월급'])
+  const [paymentMethods, setPaymentMethods] = useState(['현대카드', '국민카드', '현금']) //결제수단 목록
+  const [categories, setCategories] = useState(['문화/여가', '교통', '식비', '생활', '쇼핑/뷰티', '월급']) //분류 목록
 
   useEffect(() => {
     fetchExpenses()
-  }, [])
-
+  }, [])  //처음 한 번만 실행됨. 여기에 state넣으면 그 state바ㄸ뀔때마다 실행됨
+ 
   const fetchExpenses = async () => {
     try {
       const response = await fetch('http://localhost:8000/api/expenses')
@@ -74,7 +74,7 @@ function ExpenseList() {
 
   const formatAmount = (amount: number) => {
     return amount.toLocaleString('ko-KR')
-  }
+  } //날짜별로 묶기
 
   const getDateLabel = (dateString: string) => {
     // Convert "2023. 08. 17" to "8월 17일 목요일" format
@@ -97,82 +97,6 @@ function ExpenseList() {
 
   return (
     <div className="w-full max-w-[1400px] mx-auto bg-white">
-      {/* Filter Bar */}
-      <div className="flex items-center bg-white px-4 py-3 border border-gray-300 gap-0">
-        <div className="flex flex-col gap-1 px-4 py-2 border-r border-gray-200 min-w-[140px]">
-          <label className="text-xs text-gray-500 font-normal">일자</label>
-          <input
-            type="text"
-            value={filterDate}
-            onChange={(e) => setFilterDate(e.target.value)}
-            className="text-base font-medium text-gray-900 outline-none bg-transparent border-0 p-0"
-          />
-        </div>
-
-        <div className="flex flex-col gap-1 px-4 py-2 border-r border-gray-200 min-w-[160px]">
-          <label className="text-xs text-gray-500 font-normal">금액</label>
-          <div className="flex items-center gap-2">
-            <span className="text-gray-400">-</span>
-            <input
-              type="text"
-              placeholder="0"
-              className="flex-1 text-base font-medium text-gray-900 outline-none bg-transparent border-0 p-0 text-right"
-            />
-            <span className="text-base font-medium text-gray-900">원</span>
-          </div>
-        </div>
-
-        <div className="flex flex-col gap-1 px-4 py-2 border-r border-gray-200 min-w-[140px]">
-          <label className="text-xs text-gray-500 font-normal">결제수단</label>
-          <select
-            value={filterPaymentMethod}
-            onChange={(e) => {
-              if (e.target.value === '__add__') {
-                setIsPaymentModalOpen(true)
-                setFilterPaymentMethod('')
-              } else {
-                setFilterPaymentMethod(e.target.value)
-              }
-            }}
-            className="text-base font-medium text-gray-900 outline-none bg-transparent border-0 p-0 cursor-pointer appearance-none bg-[url('data:image/svg+xml;charset=UTF-8,%3Csvg%20width%3D%2710%27%20height%3D%276%27%20viewBox%3D%270%200%2010%206%27%20fill%3D%27none%27%20xmlns%3D%27http%3A//www.w3.org/2000/svg%27%3E%3Cpath%20d%3D%27M1%201L5%205L9%201%27%20stroke%3D%27%23999%27%20stroke-width%3D%271.5%27%20stroke-linecap%3D%27round%27%20stroke-linejoin%3D%27round%27/%3E%3C/svg%3E')] bg-no-repeat bg-[right_center] pr-6"
-          >
-            <option value="">입력하세요</option>
-            {paymentMethods.map(method => (
-              <option key={method} value={method}>{method}</option>
-            ))}
-            <option value="__add__">+ 추가하기</option>
-          </select>
-        </div>
-
-        <div className="flex flex-col gap-1 px-4 py-2 border-r border-gray-200 min-w-[140px]">
-          <label className="text-xs text-gray-500 font-normal">분류</label>
-          <select
-            value={filterCategory}
-            onChange={(e) => {
-              if (e.target.value === '__add__') {
-                setIsCategoryModalOpen(true)
-                setFilterCategory('')
-              } else {
-                setFilterCategory(e.target.value)
-              }
-            }}
-            className="text-base font-medium text-gray-900 outline-none bg-transparent border-0 p-0 cursor-pointer appearance-none bg-[url('data:image/svg+xml;charset=UTF-8,%3Csvg%20width%3D%2710%27%20height%3D%276%27%20viewBox%3D%270%200%2010%206%27%20fill%3D%27none%27%20xmlns%3D%27http%3A//www.w3.org/2000/svg%27%3E%3Cpath%20d%3D%27M1%201L5%205L9%201%27%20stroke%3D%27%23999%27%20stroke-width%3D%271.5%27%20stroke-linecap%3D%27round%27%20stroke-linejoin%3D%27round%27/%3E%3C/svg%3E')] bg-no-repeat bg-[right_center] pr-6"
-          >
-            <option value="">선택하세요</option>
-            {categories.map(category => (
-              <option key={category} value={category}>{category}</option>
-            ))}
-            <option value="__add__">+ 추가하기</option>
-          </select>
-        </div>
-
-        <button className="w-12 h-12 rounded-full bg-gray-400 border-0 cursor-pointer flex items-center justify-center flex-shrink-0 ml-4 hover:bg-gray-500 transition-colors">
-          <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-            <path d="M4 10L8 14L16 6" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
-        </button>
-      </div>
-
       {/* Statistics */}
       <div className="px-4 py-3 flex items-center justify-between border-b border-gray-200 bg-white">
         <div className="text-sm text-gray-700">
