@@ -26,6 +26,7 @@ class ExpenseCreate(BaseModel):
     description: str
     paymentMethod: str
     category: str
+    type: str = "expense"  # 기본값 expense
 
 class Expense(ExpenseCreate):
     id: str

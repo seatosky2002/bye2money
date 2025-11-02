@@ -110,6 +110,23 @@ function ExpenseForm({ editingExpense, onClearEdit, onExpenseUpdated }: ExpenseF
            formData.category !== ''
   }
 
+  // 수정 모드에서 변경사항이 있는지 확인
+  const hasChanges = () => {
+    if (!editingExpense) return true // 생성 모드는 항상 true
+
+    return formData.date !== editingExpense.date ||
+           formData.amount !== editingExpense.amount ||
+           formData.description !== editingExpense.description ||
+           formData.paymentMethod !== editingExpense.paymentMethod ||
+           formData.category !== editingExpense.category ||
+           formData.type !== editingExpense.type
+  }
+
+  // 버튼 활성화 조건: 모든 필드 입력 && (생성 모드 또는 수정사항이 있음)
+  const isButtonEnabled = () => {
+    return isFormValid() && hasChanges()
+  }
+
   const handleSubmit = async () => {
     // 유효성 검증
     if (!isFormValid()) {
@@ -382,9 +399,9 @@ function ExpenseForm({ editingExpense, onClearEdit, onExpenseUpdated }: ExpenseF
       {/* 제출 버튼 */}
       <button
         onClick={handleSubmit}
-        disabled={!isFormValid()}
+        disabled={!isButtonEnabled()}
         className={`w-12 h-12 rounded-full border-0 flex items-center justify-center flex-shrink-0 ml-4 transition-colors ${
-          isFormValid()
+          isButtonEnabled()
             ? 'bg-blue-500 hover:bg-blue-600 cursor-pointer'
             : 'bg-gray-300 cursor-not-allowed'
         }`}

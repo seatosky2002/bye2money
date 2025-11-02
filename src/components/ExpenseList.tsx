@@ -46,6 +46,7 @@ function ExpenseList({ onEditExpense, refreshTrigger, selectedExpenseId }: Expen
   // 삭제 관련 state
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
   const [expenseToDelete, setExpenseToDelete] = useState<string | null>(null)
+  const [deleteModalPosition, setDeleteModalPosition] = useState({ top: 0, left: 0 })
 
   // Modal states
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false) //결제수단 모달 열림 여부
@@ -74,8 +75,8 @@ function ExpenseList({ onEditExpense, refreshTrigger, selectedExpenseId }: Expen
 
   // 필터링된 expenses
   const filteredExpenses = expenses.filter(expense => {
-    const isIncome = expense.type === 'income' || expense.amount > 0
-    const isExpense = expense.type === 'expense' || expense.amount < 0
+    const isIncome = expense.type === 'income'
+    const isExpense = expense.type === 'expense'
 
     if (isIncome && !showIncome) return false
     if (isExpense && !showExpense) return false
@@ -93,9 +94,9 @@ function ExpenseList({ onEditExpense, refreshTrigger, selectedExpenseId }: Expen
     return acc
   }, {} as GroupedExpenses)
 
-  // Calculate totals
-  const totalExpenses = expenses.filter(e => e.type === 'expense' || e.amount < 0).reduce((sum, e) => sum + Math.abs(e.amount), 0)
-  const totalIncome = expenses.filter(e => e.type === 'income' || e.amount > 0).reduce((sum, e) => sum + e.amount, 0)
+  // Calculate totals (amount는 항상 양수, type으로만 구분)
+  const totalExpenses = expenses.filter(e => e.type === 'expense').reduce((sum, e) => sum + e.amount, 0)
+  const totalIncome = expenses.filter(e => e.type === 'income').reduce((sum, e) => sum + e.amount, 0)
 
   const formatAmount = (amount: number) => {
     return amount.toLocaleString('ko-KR')
@@ -121,7 +122,12 @@ function ExpenseList({ onEditExpense, refreshTrigger, selectedExpenseId }: Expen
   }
 
   // 삭제 버튼 클릭 핸들러
-  const handleDeleteClick = (expenseId: string) => {
+  const handleDeleteClick = (expenseId: string, event: React.MouseEvent) => {
+    const rect = (event.target as HTMLElement).getBoundingClientRect()
+    setDeleteModalPosition({
+      top: rect.bottom + window.scrollY,
+      left: rect.left + window.scrollX - 200 // 모달 너비만큼 왼쪽으로 이동
+    })
     setExpenseToDelete(expenseId)
     setIsDeleteModalOpen(true)
   }
@@ -155,8 +161,6 @@ function ExpenseList({ onEditExpense, refreshTrigger, selectedExpenseId }: Expen
   // 내역 클릭 핸들러 (수정 모드)
   const handleExpenseClick = (expense: Expense) => {
     onEditExpense(expense)
-    // 스크롤을 상단으로 이동하여 ExpenseForm을 보이도록
-    window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
   return (
@@ -241,15 +245,17 @@ function ExpenseList({ onEditExpense, refreshTrigger, selectedExpenseId }: Expen
                     {expense.type === 'income' || expense.amount > 0 ? '+' : '-'}{formatAmount(Math.abs(expense.amount))}원
                   </div>
 
-                  {/* 삭제 버튼 (호버 시 표시) */}
+                  {/* 삭제 아이콘 (호버 시 표시) */}
                   <button
                     onClick={(e) => {
                       e.stopPropagation()
-                      handleDeleteClick(expense.id)
+                      handleDeleteClick(expense.id, e)
                     }}
-                    className="opacity-0 group-hover:opacity-100 transition-opacity absolute right-4 px-3 py-1 text-sm text-red-500 hover:text-red-700 font-medium"
+                    className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center w-8 h-8 rounded-full hover:bg-red-50"
                   >
-                    삭제
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                      <path d="M2 4h12M5.333 4V2.667a1.333 1.333 0 0 1 1.334-1.334h2.666a1.333 1.333 0 0 1 1.334 1.334V4m2 0v9.333a1.333 1.333 0 0 1-1.334 1.334H4.667a1.333 1.333 0 0 1-1.334-1.334V4h9.334Z" stroke="#EF4444" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
                   </button>
                 </div>
               ))}
@@ -279,44 +285,48 @@ function ExpenseList({ onEditExpense, refreshTrigger, selectedExpenseId }: Expen
         title="분류 추가"
       />
 
-      {/* 삭제 확인 모달 */}
+      {/* 삭제 확인 작은 모달 */}
       {isDeleteModalOpen && (
-        <div
-          className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50"
-          onClick={() => {
-            setIsDeleteModalOpen(false)
-            setExpenseToDelete(null)
-          }}
-        >
+        <>
+          {/* 배경 클릭 감지용 투명 레이어 */}
           <div
-            className="bg-white rounded-lg p-6 w-96"
+            className="fixed inset-0 z-40"
+            onClick={() => {
+              setIsDeleteModalOpen(false)
+              setExpenseToDelete(null)
+            }}
+          />
+          {/* 작은 팝업 모달 */}
+          <div
+            className="fixed bg-white rounded-lg shadow-2xl border border-gray-200 p-4 w-80 z-50"
+            style={{
+              top: `${deleteModalPosition.top}px`,
+              left: `${deleteModalPosition.left}px`,
+            }}
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 className="text-lg font-medium text-gray-900 mb-4">
-              수입지출 내역을 삭제하시겠습니까?
+            <h3 className="text-sm font-medium text-gray-900 mb-3">
+              해당 내역을 삭제하시겠습니까?
             </h3>
-            <p className="text-sm text-gray-600 mb-6">
-              삭제된 내역은 복구할 수 없습니다.
-            </p>
-            <div className="flex gap-3 justify-end">
+            <div className="flex gap-2 justify-end">
               <button
                 onClick={() => {
                   setIsDeleteModalOpen(false)
                   setExpenseToDelete(null)
                 }}
-                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded hover:bg-gray-200"
+                className="px-3 py-1.5 text-xs font-medium text-gray-700 bg-gray-100 rounded hover:bg-gray-200"
               >
                 취소
               </button>
               <button
                 onClick={handleDeleteConfirm}
-                className="px-4 py-2 text-sm font-medium text-white bg-red-500 rounded hover:bg-red-600"
+                className="px-3 py-1.5 text-xs font-medium text-white bg-red-500 rounded hover:bg-red-600"
               >
                 삭제
               </button>
             </div>
           </div>
-        </div>
+        </>
       )}
     </div>
   )
