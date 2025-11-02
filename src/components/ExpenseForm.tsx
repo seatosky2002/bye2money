@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
+import AddOptionModal from './AddOptionModal'
 
 interface ExpenseFormData {
   date: string
@@ -9,7 +10,24 @@ interface ExpenseFormData {
   type: 'income' | 'expense'
 }
 
-function ExpenseForm() {
+interface Expense {
+  id: string
+  date: string
+  amount: number
+  description: string
+  paymentMethod: string
+  category: string
+  type: 'income' | 'expense'
+  createdAt: string
+}
+
+interface ExpenseFormProps {
+  editingExpense: Expense | null
+  onClearEdit: () => void
+  onExpenseUpdated: () => void
+}
+
+function ExpenseForm({ editingExpense, onClearEdit, onExpenseUpdated }: ExpenseFormProps) {
   const [formData, setFormData] = useState<ExpenseFormData>({
     date: '2023. 08. 17',
     amount: 0,
@@ -19,18 +37,50 @@ function ExpenseForm() {
     type: 'expense'
   })
 
-  // 수입/지출 타입에 따른 결제수단 옵션
+  // 결제수단 관리 state
+  const [paymentMethods, setPaymentMethods] = useState<string[]>(['현대카드', '국민카드', '현금'])
+  const [isPaymentDropdownOpen, setIsPaymentDropdownOpen] = useState(false)
+  const [isPaymentAddModalOpen, setIsPaymentAddModalOpen] = useState(false)
+  const [isPaymentDeleteModalOpen, setIsPaymentDeleteModalOpen] = useState(false)
+  const [paymentToDelete, setPaymentToDelete] = useState<string>('')
+  const paymentDropdownRef = useRef<HTMLDivElement>(null)
+  const formRef = useRef<HTMLDivElement>(null)
+
+  // 드롭다운 외부 클릭 시 닫기
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (paymentDropdownRef.current && !paymentDropdownRef.current.contains(event.target as Node)) {
+        setIsPaymentDropdownOpen(false)
+      }
+    }
+
+    if (isPaymentDropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside)
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [isPaymentDropdownOpen])
+
+  // 수정 모드: editingExpense가 변경될 때 formData 업데이트
+  useEffect(() => {
+    if (editingExpense) {
+      setFormData({
+        date: editingExpense.date,
+        amount: editingExpense.amount,
+        description: editingExpense.description,
+        paymentMethod: editingExpense.paymentMethod,
+        category: editingExpense.category,
+        type: editingExpense.type
+      })
+    }
+  }, [editingExpense])
+
+  // 수입/지출 타입에 따른 결제수단 옵션 (동일하게 사용)
   const paymentMethodOptions = {
-    income: [
-      { value: '현대카드', label: '현대카드' },
-      { value: '국민카드', label: '국민카드' },
-      { value: '현금', label: '현금' }
-    ],
-    expense: [
-      { value: '현대카드', label: '현대카드' },
-      { value: '국민카드', label: '국민카드' },
-      { value: '현금', label: '현금' }
-    ]
+    income: paymentMethods,
+    expense: paymentMethods
   }
 
   // 수입/지출 타입에 따른 카테고리 옵션
@@ -87,8 +137,14 @@ function ExpenseForm() {
     }
 
     try {
-      const response = await fetch('http://localhost:8000/api/expenses', {
-        method: 'POST',
+      const isEditMode = editingExpense !== null
+      const url = isEditMode
+        ? `http://localhost:8000/api/expenses/${editingExpense.id}`
+        : 'http://localhost:8000/api/expenses'
+      const method = isEditMode ? 'PUT' : 'POST'
+
+      const response = await fetch(url, {
+        method: method,
         headers: {
           'Content-Type': 'application/json',
         },
@@ -96,11 +152,11 @@ function ExpenseForm() {
       })
 
       if (!response.ok) {
-        throw new Error('Failed to create expense')
+        throw new Error(isEditMode ? 'Failed to update expense' : 'Failed to create expense')
       }
 
       const data = await response.json()
-      console.log('Expense created:', data)
+      console.log(isEditMode ? 'Expense updated:' : 'Expense created:', data)
 
       // 폼 초기화
       setFormData({
@@ -112,10 +168,20 @@ function ExpenseForm() {
         type: 'expense'
       })
 
-      alert(formData.type === 'income' ? '수입이 저장되었습니다!' : '지출이 저장되었습니다!')
+      // 수정 모드 해제
+      if (isEditMode) {
+        onClearEdit()
+        onExpenseUpdated()
+      }
 
-      // 페이지 새로고침하여 목록 업데이트
-      window.location.reload()
+      alert(isEditMode
+        ? '수정되었습니다!'
+        : (formData.type === 'income' ? '수입이 저장되었습니다!' : '지출이 저장되었습니다!'))
+
+      // 페이지 새로고침하여 목록 업데이트 (생성 시에만)
+      if (!isEditMode) {
+        window.location.reload()
+      }
     } catch (error) {
       console.error('Error:', error)
       alert('저장에 실패했습니다.')
@@ -132,6 +198,32 @@ function ExpenseForm() {
     })
   }
 
+  // 결제수단 추가
+  const handleAddPaymentMethod = (newMethod: string) => {
+    if (newMethod.trim() && !paymentMethods.includes(newMethod)) {
+      setPaymentMethods([...paymentMethods, newMethod])
+      setFormData({ ...formData, paymentMethod: newMethod })
+    }
+    setIsPaymentAddModalOpen(false)
+  }
+
+  // 결제수단 삭제 확인
+  const handleDeletePaymentMethodConfirm = (method: string) => {
+    setPaymentToDelete(method)
+    setIsPaymentDeleteModalOpen(true)
+  }
+
+  // 결제수단 삭제 실행
+  const handleDeletePaymentMethod = () => {
+    setPaymentMethods(paymentMethods.filter(m => m !== paymentToDelete))
+    // 현재 선택된 결제수단이 삭제되는 경우 빈칸으로 설정
+    if (formData.paymentMethod === paymentToDelete) {
+      setFormData({ ...formData, paymentMethod: '' })
+    }
+    setIsPaymentDeleteModalOpen(false)
+    setPaymentToDelete('')
+  }
+
   const handleDescriptionChange = (e: React.ChangeEvent<HTMLInputElement>) => { //사용자가 입력한 객체
     const value = e.target.value
     if (value.length <= 32) {
@@ -145,7 +237,7 @@ function ExpenseForm() {
   }
 
   return (
-    <div className="flex items-center bg-white px-6 py-5 rounded-xl border border-gray-200 gap-0 w-full max-w-full overflow-x-auto">
+    <div ref={formRef} className="flex items-center bg-white px-6 py-5 rounded-xl border border-gray-200 gap-0 w-full max-w-full overflow-x-auto">
       {/* 수입/지출 타입 */}
       <div className="flex flex-col gap-1 px-4 py-2 border-r border-gray-200 min-w-[120px]">
         <label className="text-xs text-gray-500 font-normal whitespace-nowrap">구분</label>
@@ -205,20 +297,69 @@ function ExpenseForm() {
       </div>
 
       {/* 결제수단 */}
-      <div className="flex flex-col gap-1 px-4 py-2 border-r border-gray-200 min-w-[140px]">
+      <div ref={paymentDropdownRef} className="flex flex-col gap-1 px-4 py-2 border-r border-gray-200 min-w-[140px] relative">
         <label className="text-xs text-gray-500 font-normal whitespace-nowrap">결제수단</label>
-        <select
-          value={formData.paymentMethod}
-          onChange={(e) => setFormData({ ...formData, paymentMethod: e.target.value })}
-          className="text-base font-medium text-gray-900 outline-none bg-transparent border-0 p-0 cursor-pointer appearance-none bg-[url('data:image/svg+xml;charset=UTF-8,%3Csvg%20width%3D%2210%27%20height%3D%276%27%20viewBox%3D%270%200%2010%206%27%20fill%3D%27none%27%20xmlns%3D%27http%3A//www.w3.org/2000/svg%27%3E%3Cpath%20d%3D%27M1%201L5%205L9%201%27%20stroke%3D%27%23999%27%20stroke-width%3D%271.5%27%20stroke-linecap%3D%27round%27%20stroke-linejoin%3D%27round%27/%3E%3C/svg%3E')] bg-no-repeat bg-[right_center] pr-6"
+        <div
+          onClick={() => setIsPaymentDropdownOpen(!isPaymentDropdownOpen)}
+          className="text-base font-medium text-gray-900 outline-none bg-transparent border-0 p-0 cursor-pointer flex items-center justify-between"
         >
-          <option value="">선택하세요</option>
-          {paymentMethodOptions[formData.type].map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </select>
+          <span>{formData.paymentMethod || '선택하세요'}</span>
+          <svg width="10" height="6" viewBox="0 0 10 6" fill="none" className="ml-2">
+            <path d="M1 1L5 5L9 1" stroke="#999" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+        </div>
+
+        {/* 커스텀 드롭다운 패널 */}
+        {isPaymentDropdownOpen && (
+          <div className="absolute top-full left-0 mt-1 w-48 bg-white border border-gray-200 rounded-lg shadow-lg z-50 max-h-60 overflow-y-auto">
+            <div
+              onClick={() => {
+                setFormData({ ...formData, paymentMethod: '' })
+                setIsPaymentDropdownOpen(false)
+              }}
+              className="px-4 py-2 hover:bg-gray-50 cursor-pointer text-sm text-gray-500"
+            >
+              선택하세요
+            </div>
+            {paymentMethodOptions[formData.type].map((method) => (
+              <div
+                key={method}
+                className="px-4 py-2 hover:bg-gray-50 cursor-pointer flex items-center justify-between group"
+              >
+                <span
+                  onClick={() => {
+                    setFormData({ ...formData, paymentMethod: method })
+                    setIsPaymentDropdownOpen(false)
+                  }}
+                  className="flex-1 text-sm text-gray-900"
+                >
+                  {method}
+                </span>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    handleDeletePaymentMethodConfirm(method)
+                    setIsPaymentDropdownOpen(false)
+                  }}
+                  className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-500 transition-opacity ml-2"
+                >
+                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                    <path d="M10.5 3.5L3.5 10.5M3.5 3.5L10.5 10.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                  </svg>
+                </button>
+              </div>
+            ))}
+            <div
+              onClick={() => {
+                setIsPaymentAddModalOpen(true)
+                setIsPaymentDropdownOpen(false)
+              }}
+              className="px-4 py-2 hover:bg-gray-50 cursor-pointer text-sm text-blue-500 font-medium border-t border-gray-200"
+            >
+              + 추가하기
+            </div>
+          </div>
+        )}
       </div>
 
       {/* 분류 */}
@@ -252,6 +393,48 @@ function ExpenseForm() {
           <path d="M4 10L8 14L16 6" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
         </svg>
       </button>
+
+      {/* 결제수단 추가 모달 */}
+      <AddOptionModal
+        isOpen={isPaymentAddModalOpen}
+        onClose={() => setIsPaymentAddModalOpen(false)}
+        onAdd={handleAddPaymentMethod}
+        title="추가하실 결제 수단을 입력해주세요"
+      />
+
+      {/* 결제수단 삭제 확인 모달 */}
+      {isPaymentDeleteModalOpen && (
+        <div
+          className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50"
+          onClick={() => setIsPaymentDeleteModalOpen(false)}
+        >
+          <div
+            className="bg-white rounded-lg p-6 w-80"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-lg font-medium text-gray-900 mb-4">
+              해당 결제 수단을 삭제하시겠습니까?
+            </h3>
+            <p className="text-sm text-gray-600 mb-6">
+              삭제한 결제수단으로 작성된 수입지출내역은 빈칸으로 남습니다.
+            </p>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => setIsPaymentDeleteModalOpen(false)}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded hover:bg-gray-200"
+              >
+                취소
+              </button>
+              <button
+                onClick={handleDeletePaymentMethod}
+                className="px-4 py-2 text-sm font-medium text-white bg-red-500 rounded hover:bg-red-600"
+              >
+                삭제
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

@@ -8,7 +8,7 @@ interface Expense {
   description: string
   paymentMethod: string
   category: string
-  type?: 'income' | 'expense'
+  type: 'income' | 'expense'
   createdAt: string
 }
 
@@ -27,11 +27,25 @@ const categoryColors: { [key: string]: { bg: string; text: string } } = {
   '': { bg: '#e5e7eb', text: '#1f2937' }
 }
 
-function ExpenseList() {
+interface ExpenseListProps {
+  onEditExpense: (expense: Expense) => void
+  refreshTrigger: number
+  selectedExpenseId: string | null
+}
+
+function ExpenseList({ onEditExpense, refreshTrigger, selectedExpenseId }: ExpenseListProps) {
   const [expenses, setExpenses] = useState<Expense[]>([]) // generic type, 초기값
   const [filterDate, setFilterDate] = useState('2023. 08. 17') //필터용 날짜
   const [filterPaymentMethod, setFilterPaymentMethod] = useState('') //결제수단 필터
   const [filterCategory, setFilterCategory] = useState('') //카테고리 필터
+
+  // 수입/지출 필터 (기본값: 둘 다 true)
+  const [showIncome, setShowIncome] = useState(true)
+  const [showExpense, setShowExpense] = useState(true)
+
+  // 삭제 관련 state
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
+  const [expenseToDelete, setExpenseToDelete] = useState<string | null>(null)
 
   // Modal states
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false) //결제수단 모달 열림 여부
@@ -43,7 +57,7 @@ function ExpenseList() {
 
   useEffect(() => {
     fetchExpenses()
-  }, [])  //처음 한 번만 실행됨. 여기에 state넣으면 그 state바ㄸ뀔때마다 실행됨
+  }, [refreshTrigger])  // refreshTrigger가 변경될 때마다 다시 fetch
  
   const fetchExpenses = async () => {
     try {
@@ -58,8 +72,19 @@ function ExpenseList() {
     }
   }
 
+  // 필터링된 expenses
+  const filteredExpenses = expenses.filter(expense => {
+    const isIncome = expense.type === 'income' || expense.amount > 0
+    const isExpense = expense.type === 'expense' || expense.amount < 0
+
+    if (isIncome && !showIncome) return false
+    if (isExpense && !showExpense) return false
+
+    return true
+  })
+
   // Group expenses by date
-  const groupedExpenses: GroupedExpenses = expenses.reduce((acc, expense) => {
+  const groupedExpenses: GroupedExpenses = filteredExpenses.reduce((acc, expense) => {
     const dateKey = expense.date
     if (!acc[dateKey]) {
       acc[dateKey] = []
@@ -95,6 +120,45 @@ function ExpenseList() {
       .reduce((sum, e) => sum + Math.abs(e.amount), 0)
   }
 
+  // 삭제 버튼 클릭 핸들러
+  const handleDeleteClick = (expenseId: string) => {
+    setExpenseToDelete(expenseId)
+    setIsDeleteModalOpen(true)
+  }
+
+  // 삭제 확인 핸들러
+  const handleDeleteConfirm = async () => {
+    if (!expenseToDelete) return
+
+    try {
+      // 1초 지연 후 삭제
+      setTimeout(async () => {
+        const response = await fetch(`http://localhost:8000/api/expenses/${expenseToDelete}`, {
+          method: 'DELETE',
+        })
+
+        if (!response.ok) {
+          throw new Error('Failed to delete expense')
+        }
+
+        // 로컬 state 업데이트
+        setExpenses(expenses.filter(e => e.id !== expenseToDelete))
+        setIsDeleteModalOpen(false)
+        setExpenseToDelete(null)
+      }, 1000)
+    } catch (error) {
+      console.error('Error deleting expense:', error)
+      alert('삭제에 실패했습니다.')
+    }
+  }
+
+  // 내역 클릭 핸들러 (수정 모드)
+  const handleExpenseClick = (expense: Expense) => {
+    onEditExpense(expense)
+    // 스크롤을 상단으로 이동하여 ExpenseForm을 보이도록
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
   return (
     <div className="w-full max-w-[1400px] mx-auto bg-white">
       {/* Statistics */}
@@ -102,9 +166,25 @@ function ExpenseList() {
         <div className="text-sm text-gray-700">
           전체 내역 <span className="font-medium">{expenses.length}건</span>
         </div>
-        <div className="flex items-center gap-8 text-sm">
-          <span className="text-gray-700">수입 {formatAmount(totalIncome)}</span>
-          <span className="text-gray-700">지출 {formatAmount(totalExpenses)}</span>
+        <div className="flex items-center gap-6 text-sm">
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={showIncome}
+              onChange={(e) => setShowIncome(e.target.checked)}
+              className="w-4 h-4 cursor-pointer"
+            />
+            <span className="text-green-600 font-medium">수입 {formatAmount(totalIncome)}</span>
+          </label>
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={showExpense}
+              onChange={(e) => setShowExpense(e.target.checked)}
+              className="w-4 h-4 cursor-pointer"
+            />
+            <span className="text-red-600 font-medium">지출 {formatAmount(totalExpenses)}</span>
+          </label>
         </div>
       </div>
 
@@ -115,11 +195,11 @@ function ExpenseList() {
             {/* Date Header */}
             <div className="flex items-center justify-between px-4 py-3 bg-gray-50">
               <h3 className="text-sm font-medium text-gray-900">{getDateLabel(date)}</h3>
-              <div className="text-sm text-gray-600">
+              <div className="text-sm flex items-center gap-4">
                 {getDailyTotal(dateExpenses, 'income') > 0 && (
-                  <span className="mr-4">수입 {formatAmount(getDailyTotal(dateExpenses, 'income'))}원</span>
+                  <span className="text-green-600 font-medium">수입 {formatAmount(getDailyTotal(dateExpenses, 'income'))}원</span>
                 )}
-                지출 {formatAmount(getDailyTotal(dateExpenses, 'expense'))}원
+                <span className="text-red-600 font-medium">지출 {formatAmount(getDailyTotal(dateExpenses, 'expense'))}원</span>
               </div>
             </div>
 
@@ -128,7 +208,10 @@ function ExpenseList() {
               {dateExpenses.map((expense) => (
                 <div
                   key={expense.id}
-                  className="flex items-center gap-6 py-4 px-4 border-b border-gray-100 last:border-b-0"
+                  className={`flex items-center gap-6 py-4 px-4 border-b border-gray-100 last:border-b-0 hover:bg-white transition-colors group relative cursor-pointer ${
+                    selectedExpenseId === expense.id ? 'bg-blue-50 border-l-4 border-l-blue-500' : ''
+                  }`}
+                  onClick={() => handleExpenseClick(expense)}
                 >
                   {/* Category Badge */}
                   <div
@@ -153,10 +236,21 @@ function ExpenseList() {
 
                   {/* Amount */}
                   <div className={`text-sm font-medium min-w-[100px] text-right ${
-                    expense.type === 'income' || expense.amount > 0 ? 'text-gray-900' : 'text-gray-900'
+                    expense.type === 'income' || expense.amount > 0 ? 'text-green-600' : 'text-red-600'
                   }`}>
                     {expense.type === 'income' || expense.amount > 0 ? '+' : '-'}{formatAmount(Math.abs(expense.amount))}원
                   </div>
+
+                  {/* 삭제 버튼 (호버 시 표시) */}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handleDeleteClick(expense.id)
+                    }}
+                    className="opacity-0 group-hover:opacity-100 transition-opacity absolute right-4 px-3 py-1 text-sm text-red-500 hover:text-red-700 font-medium"
+                  >
+                    삭제
+                  </button>
                 </div>
               ))}
             </div>
@@ -184,6 +278,46 @@ function ExpenseList() {
         }}
         title="분류 추가"
       />
+
+      {/* 삭제 확인 모달 */}
+      {isDeleteModalOpen && (
+        <div
+          className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50"
+          onClick={() => {
+            setIsDeleteModalOpen(false)
+            setExpenseToDelete(null)
+          }}
+        >
+          <div
+            className="bg-white rounded-lg p-6 w-96"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-lg font-medium text-gray-900 mb-4">
+              수입지출 내역을 삭제하시겠습니까?
+            </h3>
+            <p className="text-sm text-gray-600 mb-6">
+              삭제된 내역은 복구할 수 없습니다.
+            </p>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => {
+                  setIsDeleteModalOpen(false)
+                  setExpenseToDelete(null)
+                }}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded hover:bg-gray-200"
+              >
+                취소
+              </button>
+              <button
+                onClick={handleDeleteConfirm}
+                className="px-4 py-2 text-sm font-medium text-white bg-red-500 rounded hover:bg-red-600"
+              >
+                삭제
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
